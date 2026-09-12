@@ -919,7 +919,7 @@ runs:
         echo "✅ KernelSU added (commit: ${KSU_COMMIT_SHA:0:8})"
         echo "::endgroup::"
 
-        - name: Add RT2800USB (RT3070) Support
+    - name: Add RT2800USB (RT3070) Support
       shell: bash
       run: |
         set -euo pipefail
