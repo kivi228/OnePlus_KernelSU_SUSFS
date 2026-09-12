@@ -298,21 +298,19 @@ jobs:
           declare -A susfs_hashes
           declare -A susfs_versions_per_key
           
-                    for key in "${active_keys[@]}"; do
+          for key in "${active_keys[@]}"; do
             default_val="${default_branches[$key]}"
             user_val="${user_inputs[$key]:-$default_val}"
             
-            # Bypass GitLab API completely and use the branch/ref directly
-            resolved="$user_val"
+            # Build GraphQL query — include blob fetch only when releasing
+            HASH_QUERY="{ project(fullPath: \"${GITLAB_PROJECT_PATH}\") { repository { ch: commit(ref: \"${user_val}\") { sha } } } }"
+            RELEASE_QUERY="{ project(fullPath: \"${GITLAB_PROJECT_PATH}\") { repository { ch: commit(ref: \"${user_val}\") { sha } blobs(paths: [\"kernel_patches/include/linux/susfs.h\"], ref: \"${user_val}\") { nodes { rawBlob } } } } }"
             
             if [ "${{ inputs.make_release }}" = "true" ]; then
-              susfs_versions_per_key[$key]="v2.2.0"
+              GL_QUERY="$RELEASE_QUERY"
+            else
+              GL_QUERY="$HASH_QUERY"
             fi
-            
-            susfs_hashes["$key"]="$resolved"
-            echo "  ✅ Bypassed GitLab API: $key → $resolved"
-          done
-
             
             MAX_RETRIES=3
             RETRY_COUNT=0
@@ -328,12 +326,11 @@ jobs:
                 if [ -n "$resolved" ] && [ "$resolved" != "null" ]; then
                   echo "  ✅ Query for $key Success"
                   
-                            # SUSFS_VERSION — only when releasing
-              if [ "${{ inputs.make_release }}" = "true" ]; then
-            susfs_base_version="v2.2.0"
-            echo "susfs_base_version=$susfs_base_version" >> "$GITHUB_OUTPUT"
-              fi
-
+                  if [ "${{ inputs.make_release }}" = "true" ]; then
+                    extracted=$(echo "$RESPONSE" | jq -r '.data.project.repository.blobs.nodes[0].rawBlob // empty' | grep '#define SUSFS_VERSION' | awk -F'"' '{print $2}')
+                    susfs_versions_per_key[$key]="${extracted:-unknown}"
+                    echo "  ✅ $key → SUSFS_VERSION = ${extracted:-unknown}"
+                  fi
                   
                   break
                 fi
@@ -484,13 +481,4 @@ jobs:
             cat << 'EOF'
           - Optimization: ${{ inputs.optimize_level }}
           - Clean Build/No Ccache: ${{ inputs.clean_build && '✅ Yes' || '❌ No' }}
-          - Create Release: ${{ inputs.make_release && '✅ Yes' || '❌ No' }}
-          - Create Debug Artifacts: ${{ inputs.debug && '✅ Yes' || '❌ No' }}
-          - Sync toolchains: ${{ inputs.mirror_toolchains && '✅ Yes' || '❌ No' }}
-          
-          **SUSFS Configuration:**
-          EOF
-          } >> "$GITHUB_STEP_SUMMARY"
-          
-          # Display SUSFS config for each kernel version
-          declare 
+          - Create Release: ${{ inpu
