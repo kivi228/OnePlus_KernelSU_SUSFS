@@ -769,26 +769,26 @@ runs:
         retry_fetch_archive() {
           local url="$1"
           local branch="${2:-main}"
+          local repo_name=$(basename "$url" .git)
           local max_attempts=3
           local attempt=1
           
-          local repo_name=$(basename "$url" .git)
-          local safe_branch=$(echo "$branch" | tr '/' '_')
-          local archive_name="${repo_name}_${safe_branch}.tar.gz"
-          local shm_path="/dev/shm/$archive_name"
+          while [ $attempt -le $max_attempts ]; do
+            echo "🔄 Attempt $attempt/$max_attempts: cloning $url ($branch)"
+            rm -rf "$repo_name"
+            if git clone --branch "$branch" --depth 1 "$url" "$repo_name"; then
+              echo "✅ Success"
+              return 0
+            fi
+            echo "❌ Failed, retrying..."
+            sleep 5
+            attempt=$((attempt + 1))
+          done
           
-          local nproc=$(nproc 2>/dev/null || echo 4)
-          
-          local aria_log_flags="--quiet --summary-interval=0"
-          if [ "${{ inputs.debug }}" = "true" ]; then
-              aria_log_flags="--summary-interval=5" # Show progress every 5s in debug
-          fi
-          
-          local aria2_headers=(
-            "--header=User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            "--header=Accept: */*"
-            "--header=Connection: keep-alive"
-          )
+          echo "::error::All clone attempts failed for $url"
+          return 1
+        }
+
           
           local download_url=""
           if [[ "$url" == *"github.com"* ]]; then
