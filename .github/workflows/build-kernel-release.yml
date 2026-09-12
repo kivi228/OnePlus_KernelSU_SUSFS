@@ -833,7 +833,6 @@ jobs:
             echo ""
             echo "💾 ccache preserved for next build"
           fi
-          
           echo ""
           echo "💽 Final disk usage:"
           df -h /
@@ -887,7 +886,8 @@ jobs:
           path: ./downloaded-artifacts
           merge-multiple: true
           skip-decompress: true
-          - name: 📝 Generate Device List and Final Release Notes
+
+      - name: 📝 Generate Device List and Final Release Notes
         id: generate-notes
         run: |
           echo "=== Start building the release notes ==="
