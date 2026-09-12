@@ -732,7 +732,8 @@ runs:
 
         echo "::endgroup::"
         
-     - name: Fetch SusFS and Other Dependencies
+        
+    - name: Fetch SusFS and Other Dependencies
       shell: bash
       run: |
         echo "::group::Fetch dependencies"
