@@ -731,20 +731,16 @@ runs:
         fi
 
         echo "::endgroup::"
-
-    - name: Fetch SusFS and Other Dependencies
+        
+     - name: Fetch SusFS and Other Dependencies
       shell: bash
       run: |
         echo "::group::Fetch dependencies"
         set -euo pipefail
         echo "Fetching SusFS and other dependencies..."
         
-        
         if [ "${{ env.OP_SUSFS }}" = true ]; then
-          # Determine SUSFS branch/commit to use
           SUSFS_INPUT="${{ inputs.susfs_commit_hash_or_branch }}"
-          
-          # Default SUSFS branches for each kernel version
           declare -A DEFAULT_SUSFS=(
             ["android12-5.10"]="gki-android12-5.10"
             ["android13-5.15"]="gki-android13-5.15"
@@ -752,19 +748,16 @@ runs:
             ["android15-6.6"]="gki-android15-6.6"
             ["android16-6.12"]="gki-android16-6.12"
           )
-          
-          # Determine which SUSFS ref to use
           KERNEL_KEY="${{ env.ANDROID_VER }}-${{ env.KERNEL_VER }}"
           if [ -z "$SUSFS_INPUT" ]; then
-            # use kernel-specific default
             SUSFS_BRANCH="${DEFAULT_SUSFS[$KERNEL_KEY]:-gki-android15-6.6}"
             echo "ℹ️  Using default SUSFS branch for $KERNEL_KEY: $SUSFS_BRANCH"
           else
-            # 40-char hash or branch/commit passed directly
             SUSFS_BRANCH="$SUSFS_INPUT"
             echo "🔧 Using resolved SUSFS ref: $SUSFS_BRANCH"
           fi
         fi
+
         retry_fetch_archive() {
           local url="$1"
           local branch="${2:-main}"
@@ -787,19 +780,15 @@ runs:
           echo "::error::All clone attempts failed for $url"
           return 1
         }
-        retry_fetch_archive "https://github.com/WildKernels/kernel_patches.git" "main" "1"
+
+        retry_fetch_archive "https://github.com/WildKernels/kernel_patches.git" "main"
         
         if [ "${{ env.OP_SUSFS }}" = true ]; then
           echo "Using SUSFS branch/commit: $SUSFS_BRANCH"
-          git clone https://gitlab.com/simonpunk/susfs4ksu.git
-          cd susfs4ksu
-          git checkout "$SUSFS_BRANCH"
-          cd ..
+          retry_fetch_archive "https://gitlab.com/simonpunk/susfs4ksu.git" "$SUSFS_BRANCH"
           echo "SUSFS_COMMIT_SHA=$SUSFS_BRANCH" >> $GITHUB_ENV
         fi
 
-          echo "SUSFS_COMMIT_SHA=$SUSFS_BRANCH" >> $GITHUB_ENV
-        fi
         echo "✅ Dependencies cloned"
         echo "::endgroup::"
 
