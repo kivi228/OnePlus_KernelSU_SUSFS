@@ -1997,7 +1997,7 @@ runs:
         esac
         
         scripts/config --file "$OUT/.config" -m CONFIG_RT2X00
-scripts/config --file "$OUT/.config" -m CONFIG_RT2800USB
+        scripts/config --file "$OUT/.config" -m CONFIG_RT2800USB
         make LD="$COMMON_KERNEL_FOLDER/ld-wrapper" HOSTLD="$COMMON_KERNEL_FOLDER/ld-wrapper" O="$OUT" olddefconfig
         
         KCFLAGS="$KCFLAGS -Wno-error -pipe ${KCFLAGS_EXTRA}"
