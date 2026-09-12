@@ -761,17 +761,22 @@ runs:
 
         retry_fetch_archive() {
           local url="$1"
-          local branch="${2:-main}"
+          local ref="${2:-main}"
           local repo_name=$(basename "$url" .git)
           local max_attempts=3
           local attempt=1
           
           while [ $attempt -le $max_attempts ]; do
-            echo "🔄 Attempt $attempt/$max_attempts: cloning $url ($branch)"
+            echo "🔄 Attempt $attempt/$max_attempts: cloning $url (ref: $ref)"
             rm -rf "$repo_name"
-            if git clone --branch "$branch" --depth 1 "$url" "$repo_name"; then
-              echo "✅ Success"
-              return 0
+            if git clone "$url" "$repo_name"; then
+              cd "$repo_name"
+              if git checkout "$ref" 2>/dev/null || git checkout -b temp_branch "$ref"; then
+                echo "✅ Success"
+                cd ..
+                return 0
+              fi
+              cd ..
             fi
             echo "❌ Failed, retrying..."
             sleep 5
@@ -781,6 +786,7 @@ runs:
           echo "::error::All clone attempts failed for $url"
           return 1
         }
+
 
         retry_fetch_archive "https://github.com/WildKernels/kernel_patches.git" "main"
         
