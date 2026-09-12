@@ -318,7 +318,11 @@ jobs:
             resolved=""
             
             until [ $RETRY_COUNT -ge $MAX_RETRIES ]; do
-              RESPONSE=$(curl -s --fail -G "https://gitlab.com/api/graphql" --data-urlencode "query=$GL_QUERY")
+                          # Отключаем запросы к GitLab и берем хэш напрямую из ввода
+            resolved="$user_val"
+            EXIT_CODE=0
+            echo "  ✅ Forced direct hash: $resolved"
+
               EXIT_CODE=$?
               
               if [ $EXIT_CODE -eq 0 ] && [ -n "$RESPONSE" ]; then
