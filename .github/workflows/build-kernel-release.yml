@@ -267,7 +267,8 @@ jobs:
           # Inject ksu_resolved_hash into each device in the matrix
           merged_matrix=$(echo "$merged_matrix" | jq  --arg resolved_sha "$resolved_sha" 'map(.ksu_resolved_hash = $resolved_sha)')
           
-          # SUSFS hash fetch (Bypassed via direct input)
+          # SUSFS hash fetch
+          SUSFS_REPO="https://gitlab.com/simonpunk/susfs4ksu.git"
           GITLAB_PROJECT_PATH="simonpunk/susfs4ksu"
           
           declare -A default_branches=(
@@ -297,10 +298,11 @@ jobs:
           declare -A susfs_hashes
           declare -A susfs_versions_per_key
           
-          for key in "${active_keys[@]}"; do
+                    for key in "${active_keys[@]}"; do
             default_val="${default_branches[$key]}"
             user_val="${user_inputs[$key]:-$default_val}"
             
+            # Bypass GitLab API completely and use the branch/ref directly
             resolved="$user_val"
             
             if [ "${{ inputs.make_release }}" = "true" ]; then
@@ -309,6 +311,53 @@ jobs:
             
             susfs_hashes["$key"]="$resolved"
             echo "  ✅ Bypassed GitLab API: $key → $resolved"
+          done
+
+            
+            MAX_RETRIES=3
+            RETRY_COUNT=0
+            RETRY_DELAY=5
+            resolved=""
+            
+            until [ $RETRY_COUNT -ge $MAX_RETRIES ]; do
+              RESPONSE=$(curl -s --fail -G "https://gitlab.com/api/graphql" --data-urlencode "query=$GL_QUERY")
+              EXIT_CODE=$?
+              
+              if [ $EXIT_CODE -eq 0 ] && [ -n "$RESPONSE" ]; then
+                resolved=$(echo "$RESPONSE" | jq -r '.data.project.repository.ch.sha // empty')
+                if [ -n "$resolved" ] && [ "$resolved" != "null" ]; then
+                  echo "  ✅ Query for $key Success"
+                  
+                            # SUSFS_VERSION — only when releasing
+              if [ "${{ inputs.make_release }}" = "true" ]; then
+            susfs_base_version="v2.2.0"
+            echo "susfs_base_version=$susfs_base_version" >> "$GITHUB_OUTPUT"
+              fi
+
+                  
+                  break
+                fi
+              fi
+              
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              echo "::warning::GitLab GraphQL API failed (Attempt $RETRY_COUNT/$MAX_RETRIES). Retrying..."
+              sleep $RETRY_DELAY
+            done
+            
+            # Final Validation — SUSFS hash
+            if [ -z "$resolved" ] || [ "$resolved" = "null" ]; then
+              echo "::error::Could not resolve SUSFS ref '$user_val' for $key on GitLab."
+              exit 1
+            fi
+            
+            # Final Validation — SUSFS version
+            if [ "${{ inputs.make_release }}" = "true" ] && [ "${susfs_versions_per_key[$key]:-unknown}" = "unknown" ]; then
+              echo "::error::Could not extract SUSFS_VERSION from susfs.h for '$key' after $MAX_RETRIES attempts. Cannot proceed with release."
+              exit 1
+            fi
+            
+            susfs_hashes["$key"]="$resolved"
+            echo "  ✅ Resolved: $key → $resolved"
           done
           
           # Write CSV list of active GKI versions
@@ -324,7 +373,29 @@ jobs:
           
           # SUSFS_VERSION — only when releasing
           if [ "${{ inputs.make_release }}" = "true" ]; then
-            susfs_base_version="v2.2.0"
+            susfs_base_version="unknown"
+            for key in "${active_keys[@]}"; do
+              ver="${susfs_versions_per_key[$key]:-unknown}"
+              if [ "$ver" != "unknown" ]; then
+                susfs_base_version="$ver"
+                break
+              fi
+            done
+            
+            if [ "$susfs_base_version" = "unknown" ]; then
+              echo "::error::Could not extract SUSFS_VERSION from susfs.h for any active GKI key. Cannot proceed with release."
+              exit 1
+            fi
+            
+            # make_release=true: mismatch is a hard error — prevents wrong tag
+            for key in "${active_keys[@]}"; do
+              key_ver="${susfs_versions_per_key[$key]:-unknown}"
+              if [ "$key_ver" != "$susfs_base_version" ]; then
+                echo "::error::SUSFS version mismatch: '$key' has '$key_ver', expected '$susfs_base_version'. Align refs before releasing."
+                exit 1
+              fi
+            done
+            
             echo "susfs_base_version=$susfs_base_version" >> "$GITHUB_OUTPUT"
           fi
           
@@ -422,98 +493,4 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           
           # Display SUSFS config for each kernel version
-          declare -A susfs_inputs=(
-            ["android12-5.10"]="${{ inputs.android12-5_10_susfs_branch_or_commit }}"
-            ["android13-5.15"]="${{ inputs.android13-5_15_susfs_branch_or_commit }}"
-            ["android14-6.1"]="${{ inputs.android14-6_1_susfs_branch_or_commit }}"
-            ["android15-6.6"]="${{ inputs.android15-6_6_susfs_branch_or_commit }}"
-            ["android16-6.12"]="${{ inputs.android16-6_12_susfs_branch_or_commit }}"
-          )
-          
-          declare -A step_hashes=(
-            ["android12-5.10"]="${{ steps.set-matrix.outputs.susfs_hash_android12_5_10 }}"
-            ["android13-5.15"]="${{ steps.set-matrix.outputs.susfs_hash_android13_5_15 }}"
-            ["android14-6.1"]="${{ steps.set-matrix.outputs.susfs_hash_android14_6_1 }}"
-            ["android15-6.6"]="${{ steps.set-matrix.outputs.susfs_hash_android15_6_6 }}"
-            ["android16-6.12"]="${{ steps.set-matrix.outputs.susfs_hash_android16_6_12 }}"
-          )
-          
-          # Iterate only on the GKI versions present in this run
-          IFS=',' read -ra active_keys_display \
-            <<< "${{ steps.set-matrix.outputs.active_gki_keys }}"
-          
-          for key in "${active_keys_display[@]}"; do
-            value="${susfs_inputs[$key]:-}"
-            fetched_hash="${step_hashes[$key]:-unknown}"
-            
-            if [ -z "$value" ]; then
-              # Auto: no input > hash resolved by ls-remote
-              echo "- $key: 🔄 auto (\`$fetched_hash\`)" >> $GITHUB_STEP_SUMMARY
-            elif [[ "$value" =~ ^[0-9a-f]{40}$ ]]; then
-              # Manual 40-char hash > direct passthrough
-              echo "- $key: 📌 \`$value\`" >> $GITHUB_STEP_SUMMARY
-            else
-              # Branch name > show branch + resolved hash
-              echo "- $key: 🔀 \`$value\` (\`$fetched_hash\`)" >> $GITHUB_STEP_SUMMARY
-            fi
-          done
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> **💡 Note:** Hashes are resolved at run time via API calls before builds start." >> $GITHUB_STEP_SUMMARY
-          
-          # Add A restriction note for android-kernel filters
-          if [[ "${{ inputs.op_model }}" == android*-*.* ]]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "> **⚠️ Android-Kernel Filter:** Only A15 and A16 devices will be built for \`${{ inputs.op_model }}\`" >> $GITHUB_STEP_SUMMARY
-          fi
-
-  mirror_toolchain:
-    needs: set-op-model
-    if: ${{ inputs.mirror_toolchains }}
-    uses: ./.github/workflows/mirror-toolchains.yml
-    secrets: inherit
-
-  prepare_ccache:
-    name: Prepare ccache binary (download once)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download custom ccache once
-        run: |
-          set -uo pipefail
-          echo "::group::Download ccache"
-          url="https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/ccache/ccache-x86-64"
-          ok=0
-          for attempt in 1 2 3 4 5 6; do
-            if curl -LfsS --connect-timeout 30 --max-time 120 -H "User-Agent: Mozill
-  prepare_ccache:
-    name: Prepare ccache binary (download once)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download custom ccache once
-        run: |
-          set -uo pipefail
-          echo "::group::Download ccache"
-          url="https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/ccache/ccache-x86-64"
-          ok=0
-          for attempt in 1 2 3 4 5 6; do
-            if curl -LfsS --connect-timeout 30 --max-time 120 -H "User-Agent: Mozilla/5.0" "$url" -o ccache && [ -s ccache ]; then
-              ok=1; break
-            fi
-            echo "attempt $attempt failed (GitHub raw 504/throttle); backing off..."
-            sleep $(( attempt * 5 + RANDOM % 6 ))
-          done
-          if [ "$ok" = 1 ]; then
-            echo "✅ downloaded ccache once for all matrix jobs"
-          else
-            echo "::warning::custom ccache download failed; matrix jobs will fall back to the apt ccache"
-            rm -f ccache
-          fi
-          echo "::endgroup::"
-      - name: Upload ccache artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: ccache-binary
-          path: ccache
-          retention-days: 1
-          if-no-files-found: warn
-          
+          declare 
