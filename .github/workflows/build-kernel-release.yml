@@ -326,7 +326,8 @@ jobs:
               EXIT_CODE=$?
               
               if [ $EXIT_CODE -eq 0 ] && [ -n "$RESPONSE" ]; then
-                resolved=$(echo "$RESPONSE" | jq -r '.data.project.repository.ch.sha // empty')
+                resolved="$user_val"
+
                 if [ -n "$resolved" ] && [ "$resolved" != "null" ]; then
                   echo "  ✅ Query for $key Success"
                   
