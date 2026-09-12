@@ -765,7 +765,6 @@ runs:
             echo "🔧 Using resolved SUSFS ref: $SUSFS_BRANCH"
           fi
         fi
-        
         retry_fetch_archive() {
           local url="$1"
           local branch="${2:-main}"
@@ -788,72 +787,6 @@ runs:
           echo "::error::All clone attempts failed for $url"
           return 1
         }
-
-          
-          local download_url=""
-          if [[ "$url" == *"github.com"* ]]; then
-              download_url="${url%.git}/archive/refs/heads/${branch}.tar.gz"
-          elif [[ "$url" == *"gitlab.com"* ]]; then
-              download_url="${url%.git}/-/archive/${branch}/${repo_name}-${branch}.tar.gz"
-          else
-              echo "::error::Unsupported host: $url"
-              return 1
-          fi
-          
-          while [ $attempt -le $max_attempts ]; do
-              echo " Attempt $attempt/$max_attempts: High-speed fetch for $repo_name ($branch)"
-              
-              if aria2c -x16 -s16 -j16 -k1M --retry-wait=2 --max-tries=5 -d "/dev/shm" -o "$archive_name" --allow-overwrite=true "${aria2_headers[@]}" $aria_log_flags "$download_url"; then
-                  mkdir -p "$repo_name"
-                  if tar -I "pigz -p $nproc -b 256" -x --record-size=1M -f "$shm_path" -C "$repo_name" --strip-components=1 --no-same-owner; then
-                      echo "✅ Success: $repo_name synced"
-                      rm -f "$shm_path"
-                      return 0
-                  fi
-              fi
-              
-              echo "⚠️ Attempt $attempt failed, clearing RAM and retrying..."
-              rm -rf "$repo_name" "$shm_path" 2>/dev/null
-              sleep 5
-              attempt=$((attempt + 1))
-          done
-          
-          echo "::error::All attempts failed for $url"
-          return 1
-        }
-        
-        retry_clone() {
-          local url="$1"
-          local branch="${2:-main}"
-          local depth="${3:-1}"
-          local dir="$(basename "$url" .git)"
-          local max_attempts=3
-          local attempt=1
-          
-          # Build git clone args
-          local clone_args=(--branch "$branch")
-          if [ "$depth" != "0" ] && [ -n "$depth" ]; then
-            clone_args+=(--depth "$depth")
-          fi
-          
-          while [ $attempt -le $max_attempts ]; do
-            echo "🔄 Attempt $attempt/$max_attempts: cloning $url ($branch)${depth:+ [depth=$depth]}"
-            
-            # Clone with dynamic args
-            git clone "${clone_args[@]}" "$url" "$dir" && {
-              echo "✅ Success"
-              return 0
-            }
-            
-            echo "❌ Failed, cleaning up..."
-            rm -rf "$dir" 2>/dev/null
-            sleep $((attempt++ * 5))
-          done
-          
-          echo "💥 All attempts failed"
-          return 1
-        }
-        
         retry_clone "https://github.com/WildKernels/kernel_patches.git" "main" "1"
         
         if [ "${{ env.OP_SUSFS }}" = true ]; then
