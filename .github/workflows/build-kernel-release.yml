@@ -267,8 +267,7 @@ jobs:
           # Inject ksu_resolved_hash into each device in the matrix
           merged_matrix=$(echo "$merged_matrix" | jq  --arg resolved_sha "$resolved_sha" 'map(.ksu_resolved_hash = $resolved_sha)')
           
-          # SUSFS hash fetch
-          SUSFS_REPO="https://gitlab.com/simonpunk/susfs4ksu.git"
+          # SUSFS hash fetch (Bypassed via direct input)
           GITLAB_PROJECT_PATH="simonpunk/susfs4ksu"
           
           declare -A default_branches=(
@@ -478,8 +477,11 @@ jobs:
     name: Prepare ccache binary (download once)
     runs-on: ubuntu-latest
     steps:
-      # Download the custom ccache binary ONCE for the whole matrix and share it as
-      # an artifact. Previously every parallel matrix job curl'd the same GitHub raw
-      # URL simultaneously, which made GitHub's edge rate-limit / 504 the CI IPs and
-      # fail the whole build (the URL is fine in a browser -- it's the ~30x parallel
-   
+      - name: Download custom ccache once
+        run: |
+          set -uo pipefail
+          echo "::group::Download ccache"
+          url="https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/ccache/ccache-x86-64"
+          ok=0
+          for attempt in 1 2 3 4 5 6; do
+            if curl -LfsS --connect-timeout 30 --max-time 120 -H "User-Agent: Mozill
