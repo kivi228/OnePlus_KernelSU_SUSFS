@@ -1959,8 +1959,20 @@ runs:
             ;;
         esac
         
-        scripts/config --file "$OUT/.config" -m CONFIG_RT2X00
-        scripts/config --file "$OUT/.config" -m CONFIG_RT2800USB
+        scripts/config --file "$OUT/.config" -e CONFIG_WLAN
+        scripts/config --file "$OUT/.config" -e CONFIG_CFG80211
+        scripts/config --file "$OUT/.config" -e CONFIG_MAC80211
+        scripts/config --file "$OUT/.config" -e CONFIG_WLAN_VENDOR_RALINK
+        scripts/config --file "$OUT/.config" -e CONFIG_RT2X00
+        scripts/config --file "$OUT/.config" -e CONFIG_RT2800LIB
+        scripts/config --file "$OUT/.config" -e CONFIG_RT2X00_LIB
+        scripts/config --file "$OUT/.config" -e CONFIG_RT2X00_LIB_USB
+        scripts/config --file "$OUT/.config" -e CONFIG_RT2X00_LIB_FIRMWARE
+        scripts/config --file "$OUT/.config" -e CONFIG_RT2X00_LIB_CRYPTO
+        scripts/config --file "$OUT/.config" -e CONFIG_EEPROM_93CX6
+        scripts/config --file "$OUT/.config" -e CONFIG_CRC_CCITT
+        scripts/config --file "$OUT/.config" -e CONFIG_RT2800USB
+        scripts/config --file "$OUT/.config" -e CONFIG_RT2800USB_RT33XX
         make LD="$COMMON_KERNEL_FOLDER/ld-wrapper" HOSTLD="$COMMON_KERNEL_FOLDER/ld-wrapper" O="$OUT" olddefconfig
         
         KCFLAGS="$KCFLAGS -Wno-error -pipe ${KCFLAGS_EXTRA}"
