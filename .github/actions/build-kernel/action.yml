@@ -927,6 +927,7 @@ runs:
         cat >> "$COMMON_KERNEL_FOLDER/arch/arm64/configs/gki_defconfig" <<EOF
         CONFIG_WIRELESS=y
         CONFIG_WLAN=y
+        CONFIG_RFKILL=y
         CONFIG_WLAN_VENDOR_RALINK=y
         CONFIG_CFG80211=y
         CONFIG_MAC80211=y
@@ -1960,6 +1961,7 @@ runs:
         esac
         
         scripts/config --file "$OUT/.config" -e CONFIG_WLAN
+        scripts/config --file "$OUT/.config" -e CONFIG_RFKILL
         scripts/config --file "$OUT/.config" -e CONFIG_CFG80211
         scripts/config --file "$OUT/.config" -e CONFIG_MAC80211
         scripts/config --file "$OUT/.config" -e CONFIG_WLAN_VENDOR_RALINK
