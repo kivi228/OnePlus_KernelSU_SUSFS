@@ -1974,7 +1974,9 @@ runs:
         scripts/config --file "$OUT/.config" -e CONFIG_RT2800USB
         scripts/config --file "$OUT/.config" -e CONFIG_RT2800USB_RT33XX
         make LD="$COMMON_KERNEL_FOLDER/ld-wrapper" HOSTLD="$COMMON_KERNEL_FOLDER/ld-wrapper" O="$OUT" olddefconfig
-        
+        echo "=== RT2800USB dependency chain check ==="
+        grep -E "CONFIG_(CFG80211|MAC80211|WLAN_VENDOR_RALINK|RT2X00|RT2800USB|RFKILL|WEXT_CORE|NET)=" "$OUT/.config" || true
+        echo "=========================================="
         KCFLAGS="$KCFLAGS -Wno-error -pipe ${KCFLAGS_EXTRA}"
         KCPPFLAGS="$KCPPFLAGS -DCONFIG_OPTIMIZE_INLINING"
         
