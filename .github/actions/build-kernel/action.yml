@@ -1956,6 +1956,12 @@ runs:
             ;;
         esac
         
+        scripts/config --file "$OUT/.config" -e CONFIG_WIRELESS
+        scripts/config --file "$OUT/.config" -e CONFIG_WLAN
+        scripts/config --file "$OUT/.config" -m CONFIG_RFKILL
+        scripts/config --file "$OUT/.config" -m CONFIG_CFG80211
+        scripts/config --file "$OUT/.config" -m CONFIG_MAC80211
+        scripts/config --file "$OUT/.config" -e CONFIG_WLAN_VENDOR_RALINK
         scripts/config --file "$OUT/.config" -m CONFIG_RT2X00
         scripts/config --file "$OUT/.config" -m CONFIG_RT2800USB
         scripts/config --file "$OUT/.config" -e CONFIG_RT2800USB_RT33XX
